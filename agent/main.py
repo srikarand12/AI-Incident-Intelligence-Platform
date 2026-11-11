@@ -1,11 +1,10 @@
 """Read-only, evidence-first incident investigation workflow."""
 import os
-import re
 from typing import TypedDict
 import psycopg
 from psycopg.rows import dict_row
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from langgraph.graph import StateGraph, END
 
 app = FastAPI(title="Incident Intelligence Agent")
@@ -43,8 +42,8 @@ def triage(state: State) -> dict:
 def retrieve(state: State) -> dict:
     incident = state["incident"]
     query = " ".join([incident["title"], incident["description"], incident["service_name"]])
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url and not os.environ.get("PGHOST"):
         return {"runbooks": []}
     with psycopg.connect(db_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:

@@ -18,19 +18,19 @@ public class IncidentController {
   @GetMapping public List<Incident> list() { return incidents.findAll(); }
   @PostMapping @ResponseStatus(HttpStatus.CREATED) public Incident create(@Valid @RequestBody Incident input) {
     input.id=null; input.createdAt=java.time.Instant.now(); input.status="OPEN";
-    if (!Set.of("LOW","MEDIUM","HIGH","CRITICAL").contains(input.severity)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid severity");
+    if (input.severity == null || !Set.of("LOW","MEDIUM","HIGH","CRITICAL").contains(input.severity)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid severity");
     return incidents.save(input);
   }
   @GetMapping("/{id}") public Incident get(@PathVariable Long id) { return require(id); }
   @PatchMapping("/{id}/status") public Incident status(@PathVariable Long id,@RequestBody Map<String,String> body) {
     Incident incident=require(id); String status=body.get("status");
-    if (!Set.of("OPEN","INVESTIGATING","MITIGATED","RESOLVED").contains(status)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid status");
+    if (status == null || !Set.of("OPEN","INVESTIGATING","MITIGATED","RESOLVED").contains(status)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid status");
     incident.status=status; return incidents.save(incident);
   }
   @GetMapping("/{id}/investigations") public List<Investigation> history(@PathVariable Long id) {
     require(id); return investigations.findByIncidentIdOrderByCreatedAtDesc(id);
   }
-  @PostMapping("/{id}/investigate") public String investigate(@PathVariable Long id) {
+  @PostMapping(value="/{id}/investigate", produces=MediaType.APPLICATION_JSON_VALUE) public String investigate(@PathVariable Long id) {
     Incident incident=require(id); incident.status="INVESTIGATING"; incidents.save(incident);
     try {
       String result=client.post().uri("/investigate").contentType(MediaType.APPLICATION_JSON)
