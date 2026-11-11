@@ -5,21 +5,23 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-incidents}
       POSTGRES_USER: ${POSTGRES_USER:-incident}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevonly}
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       retries: 20
   agent:
     build: ./agent
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-incident}:${POSTGRES_PASSWORD:-localdevonly}@postgres:5432/${POSTGRES_DB:-incidents}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-    ports: ["8000:8000"]
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-incidents}
+      PGUSER: ${POSTGRES_USER:-incident}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-localdevonly}
+      PGCONNECT_TIMEOUT: "5"
+    ports: ["127.0.0.1:${AGENT_PORT:-8000}:8000"]
     depends_on:
       postgres: {condition: service_healthy}
   backend:
@@ -29,13 +31,12 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-incident}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-localdevonly}
       AGENT_URL: http://agent:8000
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:${BACKEND_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
       agent: {condition: service_started}
   frontend:
     build: ./frontend
-    ports: ["3000:80"]
-    depends_on: [backend]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-3000}:80"]
 volumes:
   pgdata:

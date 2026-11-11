@@ -9,11 +9,11 @@ A GitHub-ready, **read-only incident investigation application**: Java 21 / Spri
 - Track incident lifecycle (OPEN, INVESTIGATING, MITIGATED, RESOLVED).
 - Persist investigation results for later review via `GET /api/incidents/{id}/investigations`.
 - Retrieve relevant runbooks from PostgreSQL using full-text search (lexical RAG).
-- Optionally generate an evidence-grounded LLM assessment using OpenAI; without a key, use a deterministic rules-based assessment.
+- Generate a deterministic assessment from incident text and retrieved runbooks.
 - Display findings, retrieved runbooks, and human-reviewed next steps.
 - No remediation is executed automatically.
 
-> **Scope:** This is a functional starter, not a production incident-response system. PostgreSQL includes the pgvector extension and an optional embedding column, but **vector embeddings / semantic similarity search are not yet implemented**. There are no Kafka consumers, external log integrations, real-time anomaly detectors, or auth/RBAC in this starter.
+> **Scope:** This is a functional starter, not a production incident-response system. PostgreSQL includes the pgvector extension, but **vector embeddings / semantic similarity search are not yet implemented**. There are no Kafka consumers, external log integrations, real-time anomaly detectors, or auth/RBAC in this starter.
 
 ## Architecture
 
@@ -23,8 +23,6 @@ React :3000 -> nginx /api proxy -> Spring Boot :8080 -> PostgreSQL :5432
                                             +-> FastAPI :8000 -> LangGraph
                                                                    |
                                                            PostgreSQL runbooks
-                                                                   |
-                                                         Optional OpenAI LLM
 ```
 
 ## Quick start
@@ -33,7 +31,6 @@ Requires Docker Compose. From the repository root:
 
 ```bash
 cp .env.example .env
-# Optional: set OPENAI_API_KEY in .env for LLM responses
 docker compose up --build -d
 ```
 
@@ -50,12 +47,22 @@ curl -X POST http://localhost:8080/api/incidents \
 curl -X POST http://localhost:8080/api/incidents/1/investigate
 ```
 
+If the page does not open, run `docker compose ps -a` and `docker compose logs --tail=100 frontend backend agent postgres` from the repository root. Run `docker compose up --build` in the foreground to see build errors and port conflicts. If a host port is occupied, set `FRONTEND_PORT`, `BACKEND_PORT`, `AGENT_PORT`, or `POSTGRES_PORT` in `.env`. If you set `FRONTEND_PORT=3001`, open http://localhost:3001.
+
+PostgreSQL runs `db/init.sql` when it initializes a new volume. If an existing volume predates the runbook schema, apply the script without deleting the volume:
+
+```bash
+docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/init.sql
+```
+
+An existing volume retains its original database credentials. Use those credentials in `.env` when starting the stack with that volume.
+
 ## Local tests
 
 ```bash
 cd backend && mvn test
 cd ../agent && pip install -r requirements.txt && pytest -q
-cd ../frontend && npm install && npm run build
+cd ../frontend && npm install && npm test && npm run build
 ```
 
 The agent unit tests do not require PostgreSQL; the full `/investigate` endpoint does.
@@ -77,10 +84,9 @@ The agent unit tests do not require PostgreSQL; the full `/investigate` endpoint
 
 - Demo credentials are intentionally local-only. Never deploy with the default password.
 - Endpoints are unauthenticated; do not expose the stack publicly.
-- Incident text is sent to the configured LLM provider if a key is present. Do not submit secrets, PII, or real production logs without a privacy review.
-- LLM output is advisory and may be wrong. Investigations do not perform production changes.
+- Investigation output is advisory and may be wrong. Investigations do not perform production changes.
 - Schema is bootstrapped by Hibernate and SQL; use Flyway or Liquibase for production migrations.
-- The synchronous investigation API can time out on slow LLM calls; production systems should use queued jobs, persistence, retries, and rate limits.
+- The synchronous investigation API can time out on slow downstream calls; production systems should use queued jobs, persistence, retries, and rate limits.
 
 ## Suggested next milestones
 
@@ -106,7 +112,7 @@ MIT. See LICENSE.
 
 - **Separation of concerns:** Spring Boot owns incident lifecycle and persistence; Python owns AI workflow; React owns the user experience.
 - **Explainability:** signals, hypotheses, retrieved references, and actions are returned separately.
-- **Safe default:** no LLM key is required; the deterministic fallback makes the demo usable offline (once containers and dependencies are installed).
+- **Safe default:** the deterministic workflow runs offline once containers and dependencies are installed.
 - **No invented observability:** signals are keywords in incident text, not actual Prometheus or Splunk measurements.
 - **Deliberate tradeoff:** investigations are synchronous for simplicity; a production system needs queued background jobs and idempotency.
 
