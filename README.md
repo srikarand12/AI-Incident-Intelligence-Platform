@@ -112,7 +112,7 @@ MIT. See LICENSE.
 
 - **Separation of concerns:** Spring Boot owns incident lifecycle and persistence; Python owns AI workflow; React owns the user experience.
 - **Explainability:** signals, hypotheses, retrieved references, and actions are returned separately.
-- **Safe default:** no LLM key is required; the deterministic fallback makes the demo usable offline (once containers and dependencies are installed).
+- **Safe default:** the deterministic workflow runs offline once containers and dependencies are installed.
 - **No invented observability:** signals are keywords in incident text, not actual Prometheus or Splunk measurements.
 - **Deliberate tradeoff:** investigations are synchronous for simplicity; a production system needs queued background jobs and idempotency.
 
